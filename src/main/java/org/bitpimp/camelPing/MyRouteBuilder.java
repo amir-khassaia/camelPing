@@ -121,13 +121,13 @@ public class MyRouteBuilder extends RouteBuilder {
     	if (!url.startsWith("http://"))
     		throw new IllegalArgumentException("Camel-HTTP endpoints only!");
 
-    	// Build the timed/polling route
+    	// Build the timed/polling route interposing a custom processor instance to deal with endpoint status 
     	from(String.format("timer://camelPing?fixedRate=true&delay=%d&period=%d", delay, period))
 			.doTry()
 				.log(">>> Polling endpoint: " + url)
 				.to(url + "?throwExceptionOnFailure=true")
-				.process(processor)
 			.doCatch(Exception.class)
+			.doFinally()
 				.process(processor);
     }
 }
