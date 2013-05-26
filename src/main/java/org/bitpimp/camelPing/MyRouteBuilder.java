@@ -1,6 +1,7 @@
 package org.bitpimp.camelPing;
 
 import org.apache.camel.Exchange;
+import org.apache.camel.Handler;
 import org.apache.camel.Message;
 import org.apache.camel.Processor;
 import org.apache.camel.api.management.ManagedAttribute;
@@ -25,8 +26,22 @@ public class MyRouteBuilder extends RouteBuilder {
 	// Processor in charge of ping
 	private final Processor processor = new PingProcessor();
 
+	/**
+	 * Demonstrates a custom POJO bean that is invoked whenever the endpoint goes offline or online for the first time
+	 * 
+	 */
+	public final class AlertHandler {
+		@Handler
+		public void alertHandler(final Exchange exchange) {
+			final Object exception = exchange.getProperty(Exchange.EXCEPTION_CAUGHT);
+			final String endpoint = (String) exchange.getProperty(Exchange.TO_ENDPOINT);
+			log.info(String.format(">>> %s ALERT: %s", exception != null ? "OFFLINE" : "ONLINE", endpoint));
+		}
+	}
+
 	@ManagedResource(description="Ping statistics")
 	public final class PingProcessor implements Processor {
+		private static final String MESSAGE_ALERT = "MESSAGE_ALERT";
 		long succeeded = 0;
 		long failed = 0;
 		long total = 0;
@@ -70,6 +85,7 @@ public class MyRouteBuilder extends RouteBuilder {
 		 */
 		@Override
 		public synchronized void process(final Exchange exchange) throws Exception {
+			Message in = exchange.getIn();
 			// Examine for any exceptions in the exchange
 			Exception exception = (Exception) exchange.getProperty(Exchange.EXCEPTION_CAUGHT);
 			boolean isFailure = exception != null;
@@ -81,18 +97,21 @@ public class MyRouteBuilder extends RouteBuilder {
 				lastFailed++;
 				if (lastSucceeded > 0)
 					lastSucceeded = 0;
+				if (lastFailed == 1)
+					in.setHeader(MESSAGE_ALERT, true); // first failure in sequence
 			}
 			else {
 				succeeded++;
 				lastSucceeded++;
 				if (lastFailed > 0)
 					lastFailed = 0;
+				if (lastSucceeded == 1)
+					in.setHeader(MESSAGE_ALERT, true); // first success in sequence
 			}
 			percentageSuccess =  (100 * succeeded) / total;
 			
 			// Look at HTTP response code (if present)
-			Message out = exchange.getIn();
-			Integer responseCode = out.getHeader(Exchange.HTTP_RESPONSE_CODE, Integer.class);
+			Integer responseCode = in.getHeader(Exchange.HTTP_RESPONSE_CODE, Integer.class);
 			
 			if (isFailure) {
 				log.info(String.format(">>> FAILURE (%s): %d/%d failed %d%% (last %d failed): %s", 
@@ -149,6 +168,9 @@ public class MyRouteBuilder extends RouteBuilder {
 				.to(url + "?throwExceptionOnFailure=true")
 			.doCatch(Exception.class)
 			.doFinally()
-				.process(processor);
+				.process(processor)
+				// Filter to messages marked for alert handling and send to alert handling bean
+				.filter(header(PingProcessor.MESSAGE_ALERT).isNotNull())
+				.bean(new AlertHandler());
     }
 }
