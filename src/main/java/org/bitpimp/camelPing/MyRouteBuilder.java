@@ -54,6 +54,16 @@ public class MyRouteBuilder extends RouteBuilder {
 		public long getPercentageSuccess() {
 			return percentageSuccess;
 		}
+		
+		@ManagedAttribute
+		public long getLastSucceeded() {
+			return lastSucceeded;
+		}
+
+		@ManagedAttribute
+		public long getLastFailed() {
+			return lastFailed;
+		}
 
 		/**
 		 * Process exchange and determine the state of the operation
