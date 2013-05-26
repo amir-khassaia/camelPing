@@ -32,6 +32,9 @@ public class MyRouteBuilder extends RouteBuilder {
 		long total = 0;
 		long percentageSuccess = 0;
 		
+		long lastSucceeded = 0;
+		long lastFailed = 0;
+		
 		@ManagedAttribute
 		public long getSucceeded() {
 			return succeeded;
@@ -56,17 +59,25 @@ public class MyRouteBuilder extends RouteBuilder {
 		 * Process exchange and determine the state of the operation
 		 */
 		@Override
-		public void process(final Exchange exchange) throws Exception {
+		public synchronized void process(final Exchange exchange) throws Exception {
 			// Examine for any exceptions in the exchange
 			Exception exception = (Exception) exchange.getProperty(Exchange.EXCEPTION_CAUGHT);
 			boolean isFailure = exception != null;
 
 			// Tally up stats
 			total++;
-			if (isFailure) 
-				failed++; 
-			else 
+			if (isFailure) {
+				failed++;
+				lastFailed++;
+				if (lastSucceeded > 0)
+					lastSucceeded = 0;
+			}
+			else {
 				succeeded++;
+				lastSucceeded++;
+				if (lastFailed > 0)
+					lastFailed = 0;
+			}
 			percentageSuccess =  (100 * succeeded) / total;
 			
 			// Look at HTTP response code (if present)
@@ -74,13 +85,13 @@ public class MyRouteBuilder extends RouteBuilder {
 			Integer responseCode = out.getHeader(Exchange.HTTP_RESPONSE_CODE, Integer.class);
 			
 			if (isFailure) {
-				log.info(String.format(">>> FAILURE (%s): %d/%d (%d%%): %s", 
+				log.info(String.format(">>> FAILURE (%s): %d/%d failed %d%% (last %d failed): %s", 
 						responseCode != null ? responseCode : "No response", 
-						failed, total, percentageSuccess, exception));
+						failed, total, percentageSuccess, lastFailed, exception));
 			} else {
-				log.info(String.format(">>> SUCCESS (%s): %d/%d (%d%%)", 
+				log.info(String.format(">>> SUCCESS (%s): %d/%d succeeded %d%% (last %d succeeded)", 
 						responseCode != null ? responseCode : "No response",
-						succeeded, total, percentageSuccess));
+						succeeded, total, percentageSuccess, lastSucceeded));
 			}
 		}
 	}
