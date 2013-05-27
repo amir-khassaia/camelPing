@@ -50,6 +50,9 @@ public class MyRouteBuilder extends RouteBuilder {
 		long lastSucceeded = 0;
 		long lastFailed = 0;
 		
+		long onlineSince = 0;
+		long offlineSince = 0;
+		
 		@ManagedAttribute
 		public long getSucceeded() {
 			return succeeded;
@@ -79,6 +82,16 @@ public class MyRouteBuilder extends RouteBuilder {
 		public long getLastFailed() {
 			return lastFailed;
 		}
+		
+		@ManagedAttribute
+		public long getOnlineSince() {
+			return onlineSince;
+		}
+
+		@ManagedAttribute
+		public long getOfflineSince() {
+			return offlineSince;
+		}
 
 		/**
 		 * Process exchange and determine the state of the operation
@@ -97,16 +110,21 @@ public class MyRouteBuilder extends RouteBuilder {
 				lastFailed++;
 				if (lastSucceeded > 0)
 					lastSucceeded = 0;
-				if (lastFailed == 1)
+
+				if (lastFailed == 1) {
 					in.setHeader(MESSAGE_ALERT, true); // first failure in sequence
+					offlineSince = System.currentTimeMillis();
+				}
 			}
 			else {
 				succeeded++;
 				lastSucceeded++;
 				if (lastFailed > 0)
 					lastFailed = 0;
-				if (lastSucceeded == 1)
+				if (lastSucceeded == 1) {
 					in.setHeader(MESSAGE_ALERT, true); // first success in sequence
+					onlineSince = System.currentTimeMillis();
+				}
 			}
 			percentageSuccess =  (100 * succeeded) / total;
 			
@@ -114,14 +132,21 @@ public class MyRouteBuilder extends RouteBuilder {
 			Integer responseCode = in.getHeader(Exchange.HTTP_RESPONSE_CODE, Integer.class);
 			
 			if (isFailure) {
-				log.info(String.format(">>> FAILURE (%s): %d/%d failed %d%% (last %d failed): %s", 
+				log.info(String.format(">>> FAILURE (%s): %d/%d failed %d%% (last %d failed, offline=%s): %s", 
 						responseCode != null ? responseCode : "No response", 
-						failed, total, percentageSuccess, lastFailed, exception));
+						failed, total, percentageSuccess, lastFailed, 
+						toDuration(System.currentTimeMillis() - offlineSince), exception));
 			} else {
-				log.info(String.format(">>> SUCCESS (%s): %d/%d succeeded %d%% (last %d succeeded)", 
+				log.info(String.format(">>> SUCCESS (%s): %d/%d succeeded %d%% (last %d succeeded, online=%s)", 
 						responseCode != null ? responseCode : "No response",
-						succeeded, total, percentageSuccess, lastSucceeded));
+						succeeded, total, percentageSuccess, lastSucceeded, 
+						toDuration(System.currentTimeMillis() - onlineSince)));
 			}
+		}
+		
+		private String toDuration(long duration) {
+			duration /= 1000;
+			return String.format("%dh:%02dm:%02ds", duration/3600, (duration%3600)/60, (duration%60));
 		}
 	}
 
