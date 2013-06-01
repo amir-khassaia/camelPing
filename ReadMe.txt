@@ -14,11 +14,14 @@ For more help see the Apache Camel documentation
     http://camel.apache.org/
 
 
-Illustrates a contrived example of using Camel route to poll an endpoint and post process the results in a custom processor exposed via JMX.
+Illustrates a contrived example of using Camel route to poll an endpoint and post process 
+the results in a custom processor exposed via JMX. 
 
-Invoke with CamelPing -url <url to poll> -period <period of polling in ms> -delay <initial delay in ms>
+Invoke as follows:
+CamelPing -url <url to poll> -period <period of polling in ms> -delay <initial delay in ms>
 
 eg. To monitor Spring 'petclinic' sample:
+CamelPing -url http://localhost:8080/petclinic -period 10000 -delay 0
 [                          main] MainSupport                    INFO  Apache Camel 2.11.0 starting
 [                          main] DefaultCamelContext            INFO  Apache Camel 2.11.0 (CamelContext: camel-1) is starting
 [                          main] ManagementStrategyFactory      INFO  JMX enabled.

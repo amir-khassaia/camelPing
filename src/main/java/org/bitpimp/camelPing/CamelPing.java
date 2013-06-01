@@ -13,10 +13,9 @@ public class CamelPing {
     public static void main(String... args) throws Exception {
         Main main = new Main();
         main.enableHangupSupport();
-        main.addRouteBuilder(new MyRouteBuilder(args));
+        main.addRouteBuilder(new MyRouteBuilder(args, null));
         // No camel main options, all args consumed by the route builder
         main.run(new String[0] /* args */);
     }
-
 }
 

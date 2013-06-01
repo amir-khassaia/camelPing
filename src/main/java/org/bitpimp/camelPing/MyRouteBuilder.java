@@ -1,5 +1,6 @@
 package org.bitpimp.camelPing;
 
+import org.apache.camel.Endpoint;
 import org.apache.camel.Exchange;
 import org.apache.camel.Handler;
 import org.apache.camel.Message;
@@ -24,21 +25,36 @@ public class MyRouteBuilder extends RouteBuilder {
 	private int period = 10000;
 	
 	// Processor in charge of ping
-	private final Processor processor = new PingProcessor();
+	private final PingProcessor pingProcessor = new PingProcessor();
 
+	// Alert handling processor for first up/down event
+	private final Processor alertHandler;
+
+	// The endpoint being polled
+    private Endpoint endpoint ;
+
+	
 	/**
-	 * Demonstrates a custom POJO bean that is invoked whenever the endpoint goes offline or online for the first time
+	 * Demonstrates a custom POJO bean that is invoked whenever the endpoint goes 
+	 * offline or online for the first time
 	 * 
 	 */
-	public final class AlertHandler {
+	public class AlertHandler implements Processor{
 		@Handler
-		public void alertHandler(final Exchange exchange) {
+		@Override
+		public void process(Exchange exchange) throws Exception {
 			final Object exception = exchange.getProperty(Exchange.EXCEPTION_CAUGHT);
 			final String endpoint = (String) exchange.getProperty(Exchange.TO_ENDPOINT);
-			log.info(String.format(">>> %s ALERT: %s", exception != null ? "OFFLINE" : "ONLINE", endpoint));
+			log.info(String.format(">>> %s ALERT: %s", 
+					exception != null ? "OFFLINE" : "ONLINE", endpoint));
 		}
 	}
 
+	/**
+	 * A Camel processor that handles endpoint ping results
+	 * and exports them over JMX
+	 * 
+	 */
 	@ManagedResource(description="Ping statistics")
 	public final class PingProcessor implements Processor {
 		private static final String MESSAGE_ALERT = "MESSAGE_ALERT";
@@ -148,21 +164,35 @@ public class MyRouteBuilder extends RouteBuilder {
 			duration /= 1000;
 			return String.format("%dh:%02dm:%02ds", duration/3600, (duration%3600)/60, (duration%60));
 		}
+
+		public synchronized void reset() {
+			this.succeeded = 0;
+			this.total = 0;
+			this.failed = 0;
+			this.lastFailed = 0;
+			this.lastSucceeded = 0;
+			this.offlineSince = 0;
+			this.onlineSince = 0;
+			this.percentageSuccess = 0;
+			this.percentageSuccess = 0;
+		}
 	}
 
-	public MyRouteBuilder() {
-		url = "http://localhost:8080/petclinic/";
+    public MyRouteBuilder(final String[] args, final Processor alertHandler) {
+    	if (args != null)
+	    	for (int i = 0; i < args.length; i++) {
+	    		if ("-url".equals(args[i]))
+	    			url = args[++i];
+	    		else if ("-delay".equals(args[i]))
+	    			delay = Integer.parseInt(args[++i]);
+	    		else if ("-period".equals(args[i]))
+	    			period = Integer.parseInt(args[++i]);
+	    	}
+    	this.alertHandler = alertHandler == null ? new AlertHandler() : alertHandler;
 	}
-	
-    public MyRouteBuilder(String[] args) {
-    	for (int i = 0; i < args.length; i++) {
-    		if ("-url".equals(args[i]))
-    			url = args[++i];
-    		else if ("-delay".equals(args[i]))
-    			delay = Integer.parseInt(args[++i]);
-    		else if ("-period".equals(args[i]))
-    			period = Integer.parseInt(args[++i]);
-    	}
+
+	public MyRouteBuilder(final Processor alertHandler) {
+		this(null, alertHandler);
 	}
 
 	/**
@@ -182,20 +212,58 @@ public class MyRouteBuilder extends RouteBuilder {
     		}
     	});
 
-    	// only camel-http for now
-    	if (!url.startsWith("http://"))
-    		throw new IllegalArgumentException("Camel-HTTP endpoints only!");
+    	if (url != null)
+    		// Obtain endpoint from URI
+    		endpoint = getContext().getEndpoint(url);
+    	else if (endpoint == null)
+    		throw new IllegalArgumentException("No endpoint instance or URI set");
 
     	// Build the timed/polling route interposing a custom processor instance to deal with endpoint status 
     	from(String.format("timer://camelPing?fixedRate=true&delay=%d&period=%d", delay, period))
 			.doTry()
-				.log(">>> Polling endpoint: " + url)
-				.to(url + "?throwExceptionOnFailure=true")
+				.log(">>> Polling endpoint: " + endpoint.getEndpointUri())
+				.to(endpoint)
 			.doCatch(Exception.class)
 			.doFinally()
-				.process(processor)
+				.process(pingProcessor)
 				// Filter to messages marked for alert handling and send to alert handling bean
 				.filter(header(PingProcessor.MESSAGE_ALERT).isNotNull())
-				.bean(new AlertHandler());
+				.bean(alertHandler);
     }
+
+	public String getUrl() {
+		return url;
+	}
+
+	public void setUrl(String url) {
+		this.url = url;
+	}
+
+	public int getDelay() {
+		return delay;
+	}
+
+	public void setDelay(int delay) {
+		this.delay = delay;
+	}
+
+	public int getPeriod() {
+		return period;
+	}
+
+	public void setPeriod(int period) {
+		this.period = period;
+	}
+
+	public Endpoint getEndpoint() {
+		return endpoint;
+	}
+
+	public void setEndpoint(Endpoint endpoint) {
+		this.endpoint = endpoint;
+	}
+	
+	public PingProcessor getPingProcessor() {
+		return pingProcessor;
+	}
 }
