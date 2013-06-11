@@ -29,4 +29,4 @@ CamelPing -url http://localhost:8080/petclinic -period 10000 -delay 0
 [ thread #0 - timer://camelPing] MyRouteBuilder                 INFO  >>> FAILURE (No response): 1/4 failed 75% (last 1 failed): java.net.ConnectException: Connection refused: connect
 ```
 
-The statistics are published over JMX at: org.apache.camel.processors.<CamelRouteName>.<ProcessorName>
+The statistics are also published over JMX at: org.apache.camel.processors.<CamelRouteName>.<ProcessorName>
