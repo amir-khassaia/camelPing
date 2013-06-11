@@ -23,7 +23,7 @@ public class MyRouteBuilder extends RouteBuilder {
 	private String url;
 	private int delay = 0;
 	private int period = 10000;
-	
+
 	// Processor in charge of ping
 	private final PingProcessor pingProcessor = new PingProcessor();
 
@@ -31,13 +31,13 @@ public class MyRouteBuilder extends RouteBuilder {
 	private final Processor alertHandler;
 
 	// The endpoint being polled
-    private Endpoint endpoint ;
+	private Endpoint endpoint ;
 
-	
+
 	/**
-	 * Demonstrates a custom POJO bean that is invoked whenever the endpoint goes 
+	 * Demonstrates a custom POJO bean that is invoked whenever the endpoint goes
 	 * offline or online for the first time
-	 * 
+	 *
 	 */
 	public class AlertHandler implements Processor{
 		@Handler
@@ -45,7 +45,7 @@ public class MyRouteBuilder extends RouteBuilder {
 		public void process(Exchange exchange) throws Exception {
 			final Object exception = exchange.getProperty(Exchange.EXCEPTION_CAUGHT);
 			final String endpoint = (String) exchange.getProperty(Exchange.TO_ENDPOINT);
-			log.info(String.format(">>> %s ALERT: %s", 
+			log.info(String.format(">>> %s ALERT: %s",
 					exception != null ? "OFFLINE" : "ONLINE", endpoint));
 		}
 	}
@@ -53,7 +53,7 @@ public class MyRouteBuilder extends RouteBuilder {
 	/**
 	 * A Camel processor that handles endpoint ping results
 	 * and exports them over JMX
-	 * 
+	 *
 	 */
 	@ManagedResource(description="Ping statistics")
 	public final class PingProcessor implements Processor {
@@ -62,13 +62,13 @@ public class MyRouteBuilder extends RouteBuilder {
 		long failed = 0;
 		long total = 0;
 		long percentageSuccess = 0;
-		
+
 		long lastSucceeded = 0;
 		long lastFailed = 0;
-		
+
 		long onlineSince = 0;
 		long offlineSince = 0;
-		
+
 		@ManagedAttribute
 		public long getSucceeded() {
 			return succeeded;
@@ -88,7 +88,7 @@ public class MyRouteBuilder extends RouteBuilder {
 		public long getPercentageSuccess() {
 			return percentageSuccess;
 		}
-		
+
 		@ManagedAttribute
 		public long getLastSucceeded() {
 			return lastSucceeded;
@@ -98,7 +98,7 @@ public class MyRouteBuilder extends RouteBuilder {
 		public long getLastFailed() {
 			return lastFailed;
 		}
-		
+
 		@ManagedAttribute
 		public long getOnlineSince() {
 			return onlineSince;
@@ -143,23 +143,23 @@ public class MyRouteBuilder extends RouteBuilder {
 				}
 			}
 			percentageSuccess =  (100 * succeeded) / total;
-			
+
 			// Look at HTTP response code (if present)
 			Integer responseCode = in.getHeader(Exchange.HTTP_RESPONSE_CODE, Integer.class);
-			
+
 			if (isFailure) {
-				log.info(String.format(">>> FAILURE (%s): %d/%d failed %d%% (last %d failed, offline=%s): %s", 
-						responseCode != null ? responseCode : "No response", 
-						failed, total, percentageSuccess, lastFailed, 
+				log.info(String.format(">>> FAILURE (%s): %d/%d failed %d%% (last %d failed, offline=%s): %s",
+						responseCode != null ? responseCode : "No response",
+						failed, total, percentageSuccess, lastFailed,
 						toDuration(System.currentTimeMillis() - offlineSince), exception));
 			} else {
-				log.info(String.format(">>> SUCCESS (%s): %d/%d succeeded %d%% (last %d succeeded, online=%s)", 
+				log.info(String.format(">>> SUCCESS (%s): %d/%d succeeded %d%% (last %d succeeded, online=%s)",
 						responseCode != null ? responseCode : "No response",
-						succeeded, total, percentageSuccess, lastSucceeded, 
+						succeeded, total, percentageSuccess, lastSucceeded,
 						toDuration(System.currentTimeMillis() - onlineSince)));
 			}
 		}
-		
+
 		private String toDuration(long duration) {
 			duration /= 1000;
 			return String.format("%dh:%02dm:%02ds", duration/3600, (duration%3600)/60, (duration%60));
@@ -200,15 +200,15 @@ public class MyRouteBuilder extends RouteBuilder {
      */
     @Override
     public void configure() {
-    	// Configure Apache HTTP commons transport component to not retry on failure 
+    	// Configure Apache HTTP commons transport component to not retry on failure
     	// (we just want a single success/failure for the purposes of this exercise)
     	HttpComponent httpComponent = getContext().getComponent("http", HttpComponent.class);
     	httpComponent.setHttpClientConfigurer(new HttpClientConfigurer() {
     		@Override
     		public void configureHttpClient(HttpClient client) {
     			// Interpose non retrying handling
-    			DefaultHttpMethodRetryHandler retryhandler = new DefaultHttpMethodRetryHandler(0, false); 
-    			client.getParams().setParameter(HttpMethodParams.RETRY_HANDLER, retryhandler); 
+    			DefaultHttpMethodRetryHandler retryhandler = new DefaultHttpMethodRetryHandler(0, false);
+    			client.getParams().setParameter(HttpMethodParams.RETRY_HANDLER, retryhandler);
     		}
     	});
 
@@ -218,7 +218,7 @@ public class MyRouteBuilder extends RouteBuilder {
     	else if (endpoint == null)
     		throw new IllegalArgumentException("No endpoint instance or URI set");
 
-    	// Build the timed/polling route interposing a custom processor instance to deal with endpoint status 
+    	// Build the timed/polling route interposing a custom processor instance to deal with endpoint status
     	from(String.format("timer://camelPing?fixedRate=true&delay=%d&period=%d", delay, period))
 			.doTry()
 				.log(">>> Polling endpoint: " + endpoint.getEndpointUri())
@@ -262,7 +262,7 @@ public class MyRouteBuilder extends RouteBuilder {
 	public void setEndpoint(Endpoint endpoint) {
 		this.endpoint = endpoint;
 	}
-	
+
 	public PingProcessor getPingProcessor() {
 		return pingProcessor;
 	}
